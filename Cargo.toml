@@ -2,6 +2,11 @@
 name = "fluxhead"
 version = "0.1.0"
 edition = "2024"
+authors = ["Markus Stoller"]
+description = "A library to decode and encode gcr bytes (4-to-5)"
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/markusstoller/fluxhead"
 
 [dependencies]
 endian_codec="*"
