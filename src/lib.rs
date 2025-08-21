@@ -1,6 +1,8 @@
 extern crate core;
 
 use endian_codec::{DecodeLE, EncodeLE, PackedSize};
+use spdlog::Level::Warn;
+use spdlog::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Eq, PackedSize, EncodeLE, DecodeLE)]
 struct CbmHeaderInfo {
@@ -44,11 +46,13 @@ const TRACK_DATA_IDENTIFIER: u8 = 0x55;
 pub struct SectorHeader {
     pub gcr_encoded_data: Vec<u8>,
     pub gcr_decoded_data: Vec<u8>,
+    pub invalid_data: bool,
 }
 
 pub struct SectorData {
     pub gcr_encoded_data: Vec<u8>,
     pub gcr_decoded_data: Vec<u8>,
+    pub invalid_data: bool,
 }
 
 pub struct Sector {
@@ -84,6 +88,9 @@ impl Fluxhead {
     /// assert!(instance.data.is_empty());
     /// ```
     pub fn new() -> Self {
+        // Non-severe logs (trace, debug) are ignored by default.
+        // If you wish to enable all logs, call
+        spdlog::default_logger().set_level_filter(LevelFilter::All);
         Self { data: vec![] }
     }
 
@@ -238,6 +245,7 @@ impl Fluxhead {
         let mut sector_header = SectorHeader {
             gcr_encoded_data: vec![],
             gcr_decoded_data: vec![],
+            invalid_data: false,
         };
 
         if let Some(sync_offsets) = self.find_sync_mark_locations(track) {
@@ -312,18 +320,25 @@ impl Fluxhead {
         gcr_decoder: &mut cbm_dos::GCR,
     ) -> SectorHeader {
         let encoded_data = track[offset..offset + TRACK_HEADER_SIZE].to_vec();
-        let decoded_data = gcr_decoder.decode(&encoded_data).unwrap();
-
-        let hdr_info = CbmHeaderInfo::decode_from_le_bytes(&decoded_data);
-        /*
-                println!(
-                    "Found Track Header: #{}:{}",
-                    hdr_info.track, hdr_info.sector
-                );
-        */
-        SectorHeader {
-            gcr_encoded_data: encoded_data,
-            gcr_decoded_data: decoded_data,
+        //println!("Encoded Data: {:x?}", encoded_data);
+        if let Some(decoded_data) = gcr_decoder.decode(&encoded_data) {
+            let hdr_info = CbmHeaderInfo::decode_from_le_bytes(&decoded_data);
+            debug!(
+                "Found Track Header: #{}:{}",
+                hdr_info.track, hdr_info.sector
+            );
+            SectorHeader {
+                gcr_encoded_data: encoded_data,
+                gcr_decoded_data: decoded_data,
+                invalid_data: false,
+            }
+        } else {
+            warn!("Failed to decode track header");
+            SectorHeader {
+                gcr_encoded_data: encoded_data,
+                gcr_decoded_data: vec![],
+                invalid_data: true,
+            }
         }
     }
 
@@ -377,24 +392,22 @@ impl Fluxhead {
         let encoded_data = track[offset..offset + TRACK_DATA_SIZE].to_vec();
 
         if let Some(decoded_data) = gcr_decoder.decode(&encoded_data) {
-            /*
-                       println!(
-                           "Found Track Data (first 10 bytes) {:x?}",
-                           &decoded_data[0..10]
-                       );
+            debug!(
+                "Found Track Data (first 10 bytes) {:x?}",
+                &decoded_data[0..10]
+            );
 
-            */
             SectorData {
                 gcr_encoded_data: encoded_data,
                 gcr_decoded_data: decoded_data,
+                invalid_data: false,
             }
         } else {
-            /*
-            println!("Failed to decode track data");
-             */
+            warn!("Failed to decode track data");
             SectorData {
                 gcr_encoded_data: encoded_data.clone(),
                 gcr_decoded_data: vec![],
+                invalid_data: true,
             }
         }
     }
@@ -594,32 +607,44 @@ impl Fluxhead {
         self.parse()
     }
 
+    /// Parses data from a file located at the specified file path.
     ///
-    /// Parses data from a file at the given file path and returns the parsed data.
+    /// This function attempts to load the file using the provided `file_path`
+    /// and then parses its content. If the file cannot be loaded, an error is returned.
     ///
-    /// Calls the `load_file` method to read the file content and then processes the data using the `parse` method.
-    ///
-    /// # Arguments
-    /// * `file_path` - A string slice holding the file path to read the data from.
+    /// # Parameters
+    /// - `file_path`: A string slice that holds the path to the file that needs to be parsed.
     ///
     /// # Returns
-    /// * `Some(ParsedData)` - If the file is successfully loaded and parsed.
-    /// * `None` - If an error occurs while loading the file.
+    /// - `Ok(Some(ParsedData))`: If the file is successfully loaded and parsed, returns the parsed data wrapped in an `Option`.
+    /// - `Ok(None)`: If the file is successfully loaded but no data could be parsed.
+    /// - `Err(String)`: If the file cannot be loaded, returns an error message.
+    ///
+    /// # Errors
+    /// This function returns an error in the following situations:
+    /// - If the file located at `file_path` cannot be loaded, e.g., due to an invalid path or lack of required permissions.
     ///
     /// # Example
     /// ```
     /// let mut parser = MyParser::new();
-    /// if let Some(parsed_data) = parser.parse_from_file("data.txt") {
-    ///     println!("Parsed data: {:?}", parsed_data);
-    /// } else {
-    ///     println!("Failed to parse file.");
+    /// match parser.parse_from_file("path/to/file.txt") {
+    ///     Ok(Some(parsed_data)) => {
+    ///         println!("Parsed data: {:?}", parsed_data);
+    ///     }
+    ///     Ok(None) => {
+    ///         println!("No data was parsed from the file.");
+    ///     }
+    ///     Err(err) => {
+    ///         eprintln!("Error: {}", err);
+    ///     }
     /// }
     /// ```
-    pub fn parse_from_file(&mut self, file_path: &str) -> Option<ParsedData> {
+    pub fn parse_from_file(&mut self, file_path: &str) -> Result<Option<ParsedData>, String> {
         if self.load_file(file_path.to_string()).is_err() {
-            return None;
+            return Err("failed to load file".to_string());
         };
-        self.parse()
+
+        Ok(self.parse())
     }
 }
 
@@ -628,5 +653,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn it_works() {}
+    fn it_works() {
+        let mut fluxhead = Fluxhead::new();
+        fluxhead
+            .parse_from_file("./data/test_data.g64")
+            .expect("TODO: panic message");
+    }
 }

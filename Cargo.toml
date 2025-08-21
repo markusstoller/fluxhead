@@ -11,3 +11,4 @@ repository = "https://github.com/markusstoller/fluxhead"
 [dependencies]
 endian_codec="*"
 cbm-dos="*"
+spdlog-rs="*"
