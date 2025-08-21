@@ -107,8 +107,10 @@ impl Fluxhead {
     /// let mut instance = MyStruct { data: Vec::new() };
     /// instance.load_file(String::from("example.txt"));
     /// ```
-    fn load_file(&mut self, path: String) {
-        self.data = std::fs::read(path).unwrap();
+    fn load_file(&mut self, path: String) -> Result<(), std::io::Error> {
+        let res = std::fs::read(path)?;
+        self.data = res;
+        Ok(())
     }
 
     /// Finds the locations of specific synchronization marks in the given byte slice.
@@ -551,7 +553,11 @@ impl Fluxhead {
 
         Some(ParsedData {
             g64_header: Some(hdr),
-            tracks: if tracks.is_empty() { None } else { Some(tracks) },
+            tracks: if tracks.is_empty() {
+                None
+            } else {
+                Some(tracks)
+            },
         })
     }
 
@@ -588,47 +594,39 @@ impl Fluxhead {
         self.parse()
     }
 
-    /// Parses data from a specified file and returns the parsed result.
     ///
-    /// # Parameters
-    /// - `file_path`: A string slice that holds the file path to be loaded and parsed.
+    /// Parses data from a file at the given file path and returns the parsed data.
+    ///
+    /// Calls the `load_file` method to read the file content and then processes the data using the `parse` method.
+    ///
+    /// # Arguments
+    /// * `file_path` - A string slice holding the file path to read the data from.
     ///
     /// # Returns
-    /// - `Option<ParsedData>`: Returns `Some(ParsedData)` if the file is successfully loaded
-    ///   and parsed. Returns `None` if the parsing fails.
-    ///
-    /// # Behavior
-    /// - The function first attempts to load the contents of the file specified by the `file_path`
-    ///   using the `load_file` method.
-    /// - Once the file is loaded, it proceeds to parse the data using the `parse` method.
-    /// - The result of the parsing operation is returned to the caller.
-    ///
-    /// # Notes
-    /// - Ensure that the file exists and is accessible from the provided file path.
-    /// - The `ParsedData` type must already be defined and expected to hold the parsed content.
+    /// * `Some(ParsedData)` - If the file is successfully loaded and parsed.
+    /// * `None` - If an error occurs while loading the file.
     ///
     /// # Example
     /// ```
-    /// let mut parser = Parser::new(); // Assuming `Parser` is a struct with this method.
-    /// let parsed_data = parser.parse_from_file("example.txt");
-    ///
-    /// match parsed_data {
-    ///     Some(data) => println!("Parsed successfully: {:?}", data),
-    ///     None => eprintln!("Failed to parse the file.")
+    /// let mut parser = MyParser::new();
+    /// if let Some(parsed_data) = parser.parse_from_file("data.txt") {
+    ///     println!("Parsed data: {:?}", parsed_data);
+    /// } else {
+    ///     println!("Failed to parse file.");
     /// }
     /// ```
     pub fn parse_from_file(&mut self, file_path: &str) -> Option<ParsedData> {
-        self.load_file(file_path.to_string());
+        if self.load_file(file_path.to_string()).is_err() {
+            return None;
+        };
         self.parse()
     }
 }
-
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn it_works() {
-    }
+    fn it_works() {}
 }
