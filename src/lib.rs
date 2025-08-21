@@ -1,11 +1,10 @@
 extern crate core;
 
 use endian_codec::{DecodeLE, EncodeLE, PackedSize};
-use spdlog::Level::Warn;
 use spdlog::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Eq, PackedSize, EncodeLE, DecodeLE)]
-struct CbmHeaderInfo {
+pub struct CbmHeaderInfo {
     pub header_block_id: u8,
     header_block_checksum: u8,
     pub sector: u8,
@@ -26,21 +25,21 @@ pub struct G64HeaderInfo {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PackedSize, EncodeLE, DecodeLE)]
-struct TrackLocation {
+pub struct TrackLocation {
     track_offset: u32,
     half_track_offset: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PackedSize, EncodeLE, DecodeLE)]
-struct G64TrackData {
+pub struct G64TrackData {
     track_data_size: u16,
 }
 
-const TRACK_HEADER_SIZE: usize = 10;
-const TRACK_DATA_SIZE: usize = 325;
-const PATTERN_SIZE: usize = 4;
-const TRACK_HEADER_IDENTIFIER: u8 = 0x52;
-const TRACK_DATA_IDENTIFIER: u8 = 0x55;
+pub const TRACK_HEADER_SIZE: usize = 10;
+pub const TRACK_DATA_SIZE: usize = 325;
+pub const PATTERN_SIZE: usize = 4;
+pub const TRACK_HEADER_IDENTIFIER: u8 = 0x52;
+pub const TRACK_DATA_IDENTIFIER: u8 = 0x55;
 
 #[derive(Clone)]
 pub struct SectorHeader {
