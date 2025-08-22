@@ -44,13 +44,13 @@ pub const TRACK_DATA_IDENTIFIER: u8 = 0x55;
 #[derive(Clone)]
 pub struct SectorHeader {
     pub gcr_encoded_data: Vec<u8>,
-    pub gcr_decoded_data: Vec<u8>,
+    pub gcr_decoded_data: Option<Vec<u8>>,
     pub invalid_data: bool,
 }
 
 pub struct SectorData {
     pub gcr_encoded_data: Vec<u8>,
-    pub gcr_decoded_data: Vec<u8>,
+    pub gcr_decoded_data: Option<Vec<u8>>,
     pub invalid_data: bool,
 }
 
@@ -240,21 +240,21 @@ impl Fluxhead {
     ///   no valid sectors are found during parsing.
     fn parse_track(&self, track: &[u8]) -> Option<Vec<Sector>> {
         let mut found_tracks: Vec<Sector> = vec![];
-        let mut gcr_decoder = cbm_dos::GCR::new();
+        let gcr_decoder = cbm_dos::GCR::new();
         let mut sector_header = SectorHeader {
             gcr_encoded_data: vec![],
-            gcr_decoded_data: vec![],
+            gcr_decoded_data: None,
             invalid_data: false,
         };
 
         if let Some(sync_offsets) = self.find_sync_mark_locations(track) {
             for offset in sync_offsets {
                 if track[offset] == TRACK_HEADER_IDENTIFIER {
-                    sector_header = self.process_track_header(track, offset, &mut gcr_decoder);
+                    sector_header = self.process_track_header(track, offset, &gcr_decoder);
                 }
 
                 if track[offset] == TRACK_DATA_IDENTIFIER {
-                    let sector_data = self.process_track_data(track, offset, &mut gcr_decoder);
+                    let sector_data = self.process_track_data(track, offset, &gcr_decoder);
                     found_tracks.push(Sector {
                         header: sector_header.clone(),
                         data: sector_data,
@@ -296,7 +296,7 @@ impl Fluxhead {
     /// let offset: usize = ...; // Starting position within the track data
     /// let mut gcr_decoder = cbm_dos::GCR::new(); // Initialize a GCR decoder
     ///
-    /// let header = process_track_header(&track_data, offset, &mut gcr_decoder);
+    /// let header = process_track_header(&track_data, offset, &gcr_decoder);
     ///
     /// println!("Encoded Data: {:?}", header.gcr_encoded_data);
     /// println!("Decoded Data: {:?}", header.gcr_decoded_data);
@@ -316,7 +316,7 @@ impl Fluxhead {
         &self,
         track: &[u8],
         offset: usize,
-        gcr_decoder: &mut cbm_dos::GCR,
+        gcr_decoder: &cbm_dos::GCR,
     ) -> SectorHeader {
         let encoded_data = track[offset..offset + TRACK_HEADER_SIZE].to_vec();
         //println!("Encoded Data: {:x?}", encoded_data);
@@ -328,14 +328,14 @@ impl Fluxhead {
             );
             SectorHeader {
                 gcr_encoded_data: encoded_data,
-                gcr_decoded_data: decoded_data,
+                gcr_decoded_data: Some(decoded_data),
                 invalid_data: false,
             }
         } else {
             warn!("Failed to decode track header");
             SectorHeader {
                 gcr_encoded_data: encoded_data,
-                gcr_decoded_data: vec![],
+                gcr_decoded_data: None,
                 invalid_data: true,
             }
         }
@@ -386,7 +386,7 @@ impl Fluxhead {
         &self,
         track: &[u8],
         offset: usize,
-        gcr_decoder: &mut cbm_dos::GCR,
+        gcr_decoder: &cbm_dos::GCR,
     ) -> SectorData {
         let encoded_data = track[offset..offset + TRACK_DATA_SIZE].to_vec();
 
@@ -398,14 +398,14 @@ impl Fluxhead {
 
             SectorData {
                 gcr_encoded_data: encoded_data,
-                gcr_decoded_data: decoded_data,
+                gcr_decoded_data: Some(decoded_data),
                 invalid_data: false,
             }
         } else {
             warn!("Failed to decode track data");
             SectorData {
                 gcr_encoded_data: encoded_data.clone(),
-                gcr_decoded_data: vec![],
+                gcr_decoded_data: None,
                 invalid_data: true,
             }
         }
