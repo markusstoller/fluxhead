@@ -9,6 +9,6 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/markusstoller/fluxhead"
 
 [dependencies]
-endian_codec="0.x"
+endian_codec="0.1"
 cbm-dos="0.1.1"
 spdlog-rs="0.x"
